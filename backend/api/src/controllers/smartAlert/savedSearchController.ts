@@ -34,12 +34,12 @@ export const listSavedSearches = async (req: Request, res: Response) => {
             userId: alert.userId.toString(),
             query: alert.criteria?.keywords || alert.name || '',
             categoryId: alert.criteria?.categoryId?.toString(),
-            locationId: alert.criteria?.locationId?.toString(),
+            locationId: (alert.criteria as any)?.locationId?.toString(),
             priceMin: alert.criteria?.minPrice,
             priceMax: alert.criteria?.maxPrice,
-            createdAt: alert.createdAt,
+            createdAt: (alert as any).createdAt,
             // also append SmartAlert fields just in case
-            ...toAlertContract(alert)
+            ...toAlertContract(alert as any)
         }));
 
         res.json(respond<ApiResponse<unknown>>({
@@ -73,7 +73,7 @@ export const createSavedSearchEntry = async (req: Request, res: Response) => {
                 minPrice: payload.priceMin,
                 maxPrice: payload.priceMax
             },
-            radiusKm: payload.radiusKm || 50,
+            radiusKm: (payload as any).radiusKm || 50,
             notificationChannels: ['email', 'in-app']
         };
 
@@ -84,15 +84,15 @@ export const createSavedSearchEntry = async (req: Request, res: Response) => {
 
         // Return mapped to legacy shape
         const legacyShape = {
-            id: created._id.toString(),
-            userId: created.userId.toString(),
-            query: created.criteria?.keywords || created.name || '',
-            categoryId: created.criteria?.categoryId?.toString(),
-            locationId: created.criteria?.locationId?.toString(),
-            priceMin: created.criteria?.minPrice,
-            priceMax: created.criteria?.maxPrice,
-            createdAt: created.createdAt,
-            ...toAlertContract(created)
+            id: (created as any)._id?.toString() || '',
+            userId: (created as any).userId?.toString() || '',
+            query: (created as any).criteria?.keywords || (created as any).name || '',
+            categoryId: (created as any).criteria?.categoryId?.toString(),
+            locationId: (created as any).criteria?.locationId?.toString(),
+            priceMin: (created as any).criteria?.minPrice,
+            priceMax: (created as any).criteria?.maxPrice,
+            createdAt: (created as any).createdAt,
+            ...toAlertContract(created as any)
         };
 
         res.status(201).json(respond<ApiResponse<unknown>>({
