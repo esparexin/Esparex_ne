@@ -1,6 +1,6 @@
 {
   "statistics": {
-    "detectionDate": "2026-07-18T18:37:25.350Z",
+    "detectionDate": "2026-07-18T18:41:28.589Z",
     "formats": {
       "javascript": {
         "sources": {
@@ -13994,7 +13994,7 @@
           },
           "C:/Users/Administrator/Documents/GitHub/Esparex/backend/api/src/controllers/smartAlert/savedSearchController.ts": {
             "lines": 133,
-            "tokens": 1410,
+            "tokens": 1500,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -25407,7 +25407,7 @@
         },
         "total": {
           "lines": 127123,
-          "tokens": 1368059,
+          "tokens": 1368149,
           "sources": 1250,
           "clones": 288,
           "duplicatedLines": 3574,
@@ -25449,7 +25449,7 @@
     },
     "total": {
       "lines": 213341,
-      "tokens": 2200526,
+      "tokens": 2200616,
       "sources": 2115,
       "clones": 473,
       "duplicatedLines": 8913,

@@ -46,7 +46,7 @@ jest.mock("@esparex/core/models/User", () => ({
     },
 }));
 
-jest.mock("@esparex/core/models/AdminLog", () => ({
+jest.mock("@esparex/core/domain/audit/models/adminlog", () => ({
     __esModule: true,
     default: {
         create: jest.fn().mockResolvedValue({}),
