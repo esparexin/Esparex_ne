@@ -10,7 +10,7 @@ import { BUSINESS_STATUS } from '@esparex/contracts';
 import { LISTING_STATUS } from '@esparex/contracts';
 import { dispatchTemplatedNotification } from '../services/NotificationService';
 import { ACTOR_TYPE } from '@esparex/contracts';
-import AdminLog from '@esparex/domain-audit';
+import AdminLog from '../domain/audit/models/adminlog';
 
 const expiryWarningQueue = shouldDisableQueueConnection
     ? createNoopQueue<any>()

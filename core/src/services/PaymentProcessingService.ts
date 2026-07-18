@@ -19,7 +19,7 @@ import {
 
 import { resolveCategoryName } from './TransactionService';
 import logger, { logBusiness, logSecurity } from '../utils/logger';
-import AdminLog from '@esparex/domain-audit';
+import AdminLog from '../domain/audit/models/adminlog';
 
 export type PaymentProcessingSource = 'webhook' | 'recovery';
 
@@ -160,7 +160,7 @@ export async function processSuccessfulPayment(
                     gatewayAmountPaise,
                     expectedAmountPaise: Math.round(tx.amount * 100)
                 }
-            }).catch(err => logger.error('Failed to create AdminLog for payment failure', err));
+            }).catch((err: Error) => logger.error('Failed to create AdminLog for payment failure', err));
 
             return { result: 'failed', transactionId: tx._id.toString(), reason: 'amount_mismatch' };
         }
@@ -199,7 +199,7 @@ export async function processSuccessfulPayment(
                     gatewayCurrency: normGatewayCurrency,
                     expectedCurrency: normTransactionCurrency
                 }
-            }).catch(err => logger.error('Failed to create AdminLog for payment failure', err));
+            }).catch((err: Error) => logger.error('Failed to create AdminLog for payment failure', err));
 
             return { result: 'failed', transactionId: tx._id.toString(), reason: 'currency_mismatch' };
         }
@@ -260,7 +260,7 @@ export async function processSuccessfulPayment(
                 gatewayOrderId,
                 invoiceId: committedInvoiceId
             }
-        }).catch(err => logger.error('Failed to create AdminLog for payment', err));
+        }).catch((err: Error) => logger.error('Failed to create AdminLog for payment', err));
 
         // Background tasks post-commit
         try {

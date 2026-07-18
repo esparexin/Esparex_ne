@@ -1,6 +1,6 @@
 import Admin, { IAdmin } from '../models/Admin';
 import { Types } from 'mongoose';
-import AdminLog from '@esparex/domain-audit';
+import AdminLog from '../domain/audit/models/adminlog';
 import { USER_STATUS } from '@esparex/shared';
 import logger from '../utils/logger';
 import { env } from '../config/env';

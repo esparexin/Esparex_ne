@@ -9,7 +9,7 @@ import RevenueAnalytics from '../../../../models/RevenueAnalytics';
 import ContactSubmission from '../../../../models/ContactSubmission';
 import Location from '../../../../models/Location';
 import LocationAnalytics from '../../../../models/LocationAnalytics';
-import AdminLog from '@esparex/domain-audit';
+import AdminLog from '../../../../domain/audit/models/adminlog';
 import { LISTING_STATUS, LISTING_TYPE, BUSINESS_STATUS, CATALOG_STATUS, REPORT_STATUS, USER_STATUS } from '@esparex/contracts';
 import { AdminDashboardRepositoryPort } from '../../../../domains/admin';
 
