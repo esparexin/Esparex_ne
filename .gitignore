@@ -209,3 +209,4 @@ tech-debt-insights.md
 
 .agents/skills/
 .scratch/
+**/node_modules/
