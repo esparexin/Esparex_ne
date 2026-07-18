@@ -1,0 +1,184 @@
+import { describe, expect, it } from "vitest";
+
+import { buildAuthCallbackUrl, buildLoginUrl, normalizeAuthCallbackUrl } from "@/lib/authHelpers";
+import { buildChatConversationRoute, buildChatInboxRoute, resolveChatReturnTo } from "@/lib/chatUiRoutes";
+import {
+    buildCatalogLinkedBrowseRoute,
+    buildCategoryBrowseRoute,
+    buildPublicBrowseRoute,
+    parsePublicBrowseParams,
+    resolveBrowseCategoryParam,
+    resolvePublicBrowseBrands,
+    resolvePublicBrowseCategory,
+} from "@/lib/publicBrowseRoutes";
+import { buildPublicListingDetailRoute } from "@/lib/publicListingRoutes";
+
+describe("route helpers", () => {
+    it("preserves query params in auth callbacks while stripping nested callbackUrl", () => {
+        expect(
+            buildAuthCallbackUrl("/account/ads", "status=pending&callbackUrl=%2Funsafe")
+        ).toBe("/account/ads?status=pending");
+    });
+
+    it("builds safe login URLs from normalized callbacks", () => {
+        expect(buildLoginUrl("//evil.com")).toBe("/login?callbackUrl=%2F");
+        expect(buildLoginUrl("/account/ads?status=pending")).toBe(
+            "/login?callbackUrl=%2Faccount%2Fads%3Fstatus%3Dpending"
+        );
+        expect(normalizeAuthCallbackUrl("/search?q=iphone")).toBe("/search?q=iphone");
+    });
+
+    it("builds canonical browse routes with explicit type and preserved filters", () => {
+        expect(
+            buildPublicBrowseRoute({
+                type: "service",
+                q: "screen replacement",
+                category: "services",
+                sort: "price_low_high",
+                radiusKm: 25,
+            })
+        ).toBe("/search?type=service&q=screen+replacement&category=services&sort=price_low_high");
+    });
+
+    it("builds category and catalog browse links through shared route helpers", () => {
+        expect(
+            resolveBrowseCategoryParam({
+                id: "507f1f77bcf86cd799439011",
+                slug: "phones",
+            })
+        ).toBe("507f1f77bcf86cd799439011");
+
+        expect(
+            buildCategoryBrowseRoute({
+                id: "507f1f77bcf86cd799439011",
+                slug: "phones",
+            })
+        ).toBe("/search?type=ad&categoryId=507f1f77bcf86cd799439011");
+
+        expect(
+            buildCatalogLinkedBrowseRoute({
+                entity: "brand",
+                id: "507f1f77bcf86cd799439012",
+            })
+        ).toBe("/search?type=ad&brands=507f1f77bcf86cd799439012");
+
+        expect(
+            buildCatalogLinkedBrowseRoute({
+                entity: "model",
+                id: "507f1f77bcf86cd799439013",
+            })
+        ).toBe("/search?type=ad&modelId=507f1f77bcf86cd799439013");
+    });
+
+    it("parses browse params and preserves categoryId separately", () => {
+        const parsed = parsePublicBrowseParams(
+            new URLSearchParams("type=spare_part&categoryId=507f1f77bcf86cd799439011&q=iphone")
+        );
+
+        expect(parsed.type).toBe("spare_part");
+        expect(parsed.categoryId).toBe("507f1f77bcf86cd799439011");
+        expect(parsed.q).toBe("iphone");
+    });
+
+    it("resolves browse category through one canonical helper", () => {
+        expect(
+            resolvePublicBrowseCategory({
+                categoryId: "507f1f77bcf86cd799439011",
+                category: "phones",
+            })
+        ).toBe("507f1f77bcf86cd799439011");
+
+        expect(
+            resolvePublicBrowseCategory({
+                category: "phones",
+            })
+        ).toBe("phones");
+
+        expect(
+            resolvePublicBrowseCategory({}, "fallback-category")
+        ).toBe("fallback-category");
+    });
+
+    it("normalizes browse brand tokens through shared helpers", () => {
+        const route = buildPublicBrowseRoute({
+            type: "ad",
+            brands: [" apple ", "apple", "507f1f77bcf86cd799439011"],
+        });
+
+        expect(route).toBe("/search?type=ad&brands=apple%2C507f1f77bcf86cd799439011");
+        expect(
+            resolvePublicBrowseBrands(parsePublicBrowseParams(new URLSearchParams(route.split("?")[1])))
+        ).toEqual(["apple", "507f1f77bcf86cd799439011"]);
+    });
+
+    it("drops generic detected location labels from canonical browse routes", () => {
+        expect(
+            buildPublicBrowseRoute({
+                type: "ad",
+                location: "Current location",
+                radiusKm: 50,
+            })
+        ).toBe("/search?type=ad");
+
+        const parsed = parsePublicBrowseParams(
+            new URLSearchParams("type=ad&location=Current+location&radiusKm=50")
+        );
+
+        expect(parsed.location).toBeUndefined();
+        expect(parsed.radiusKm).toBe(50);
+    });
+
+    it("drops label-only location aliases from canonical browse routes while preserving canonical locationId routes", () => {
+        expect(
+            buildPublicBrowseRoute({
+                type: "ad",
+                location: "Pune, Maharashtra",
+                radiusKm: 50,
+            })
+        ).toBe("/search?type=ad");
+
+        expect(
+            buildPublicBrowseRoute({
+                type: "ad",
+                locationId: "507f1f77bcf86cd799439011",
+                location: "Pune, Maharashtra",
+                radiusKm: 50,
+            })
+        ).toBe("/search?type=ad&locationId=507f1f77bcf86cd799439011&location=Pune%2C+Maharashtra&radiusKm=50");
+    });
+
+    it("builds canonical listing detail routes across listing types", () => {
+        expect(
+            buildPublicListingDetailRoute({
+                listingType: "ad",
+                id: "507f1f77bcf86cd799439011",
+                title: "iPhone 15 Pro Max",
+            })
+        ).toBe("/ads/iphone-15-pro-max-507f1f77bcf86cd799439011");
+
+        expect(
+            buildPublicListingDetailRoute({
+                listingType: "service",
+                id: "svc-123",
+                seoSlug: "board-repair",
+            })
+        ).toBe("/services/board-repair-svc-123");
+    });
+
+    it("builds canonical chat routes and preserves safe return targets", () => {
+        expect(buildChatConversationRoute("conv-123")).toBe("/account/messages/conv-123");
+        expect(
+            buildChatConversationRoute("conv-123", { returnTo: "/ads/iphone-15?ref=saved" })
+        ).toBe("/account/messages/conv-123?returnTo=%2Fads%2Fiphone-15%3Fref%3Dsaved");
+        expect(
+            buildChatConversationRoute("conv-123", { returnTo: "//evil.example" })
+        ).toBe("/account/messages/conv-123");
+        expect(
+            buildChatConversationRoute("conv-123", { view: "archived" })
+        ).toBe("/account/messages/conv-123?view=archived");
+        expect(buildChatInboxRoute()).toBe("/account/messages");
+        expect(buildChatInboxRoute("archived")).toBe("/account/messages?view=archived");
+        expect(resolveChatReturnTo("/services/board-repair-svc-123")).toBe("/services/board-repair-svc-123");
+        expect(resolveChatReturnTo("//evil.example")).toBe("/account/messages");
+    });
+});

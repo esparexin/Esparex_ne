@@ -1,0 +1,67 @@
+import { Model, CreateModelDTO, UpdateModelDTO } from "@shared";
+import { adminFetch } from "./adminClient";
+import { ADMIN_ROUTES } from "./routes";
+
+export interface ModelFilters {
+    search?: string;
+    brandId?: string;
+    categoryId?: string;
+    parentModelId?: string;
+    variantModelId?: string;
+    includeVariants?: string | boolean;
+    treeView?: string | boolean;
+    status?: string;
+    page?: string | number;
+    limit?: string | number;
+    [key: string]: string | number | boolean | undefined;
+}
+
+export async function getModels(filters?: ModelFilters, options?: { signal?: AbortSignal }) {
+    const query = new URLSearchParams();
+    Object.entries(filters || {}).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === "" || value === "all") return;
+        query.set(key, String(value));
+    });
+    return adminFetch<{ items: Model[], total: number } | Model[]>(`${ADMIN_ROUTES.MODELS}?${query}`, {
+        signal: options?.signal,
+    });
+}
+
+export async function deleteModel(id: string) {
+    return adminFetch<void>(`${ADMIN_ROUTES.MODELS}/${id}`, {
+        method: "DELETE"
+    });
+}
+
+export async function createModel(data: CreateModelDTO) {
+    return adminFetch<Model>(ADMIN_ROUTES.MODELS, {
+        method: "POST",
+        body: data
+    });
+}
+
+export async function updateModel(id: string, data: UpdateModelDTO) {
+    return adminFetch<Model>(`${ADMIN_ROUTES.MODELS}/${id}`, {
+        method: "PUT",
+        body: data
+    });
+}
+
+export async function toggleModelStatus(id: string) {
+    return adminFetch<Model>(`${ADMIN_ROUTES.MODELS}/${id}/status`, {
+        method: "PATCH"
+    });
+}
+
+export async function approveModel(id: string) {
+    return adminFetch<void>(ADMIN_ROUTES.APPROVE_MODEL(id), {
+        method: "PATCH"
+    });
+}
+
+export async function rejectModel(id: string, reason: string) {
+    return adminFetch<void>(ADMIN_ROUTES.REJECT_MODEL(id), {
+        method: "PATCH",
+        body: { reason }
+    });
+}

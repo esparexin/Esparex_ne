@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  @apply font-sans;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+.custom-scrollbar {
+  -webkit-overflow-scrolling: touch;
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@esparex/shared",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.0.0 <23"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "type-check": "npm run build -w @esparex/contracts && tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@esparex/contracts": "*",
+    "@sentry/node": "^8.26.0",
+    "slugify": "^1.6.9",
+    "zod": "^3.25.76"
+  }
+}

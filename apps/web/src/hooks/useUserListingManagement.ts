@@ -1,0 +1,147 @@
+import { useCallback } from "react";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
+import { notify } from "@/lib/feedback";
+import type { User } from "@/types/User";
+import logger from "@/lib/logger";
+import { queryKeys } from "@/hooks/queries/queryKeys";
+
+export type ListingStatus = "live" | "pending" | "rejected" | "expired" | "sold" | "deactivated";
+export type ListingType = "ads" | "spare-parts" | "services";
+export type ListingSoldReason = "sold_on_platform" | "sold_outside" | "no_longer_available";
+
+interface ListingOptions<T> {
+    type: ListingType;
+    activeTab: string;
+    user: User | null;
+    statusFilter: ListingStatus;
+    fetchApi: () => Promise<T[]>;
+    deleteApi: (id: string) => Promise<unknown>;
+    markSoldApi: (id: string, reason?: ListingSoldReason) => Promise<unknown>;
+    deactivateApi: (id: string) => Promise<unknown>;
+    activateApi?: (id: string) => Promise<unknown>;
+    repostApi: (id: string) => Promise<unknown>;
+    queryKey: readonly unknown[];
+}
+
+export function useUserListingManagement<T extends { id: string; status: string }>({
+    type,
+    activeTab,
+    user,
+    statusFilter,
+    fetchApi,
+    deleteApi,
+    markSoldApi,
+    deactivateApi,
+    activateApi,
+    repostApi,
+    queryKey
+}: ListingOptions<T>) {
+    const queryClient = useQueryClient();
+    const isEnabled = activeTab === type && !!user;
+    const entityLabel = {
+        "ads": "Ad",
+        "spare-parts": "Spare part listing",
+        "services": "Service"
+    }[type];
+
+    const {
+        data: listings = [],
+        isLoading: loading,
+        refetch,
+        error,
+    } = useQuery<T[]>({
+        queryKey: [...queryKey, statusFilter],
+        queryFn: async () => {
+            const all = await fetchApi();
+            // Grouped status filtering logic to match backend tab groupings
+            if (statusFilter === "live") {
+                return all.filter((l) => ["active", "live", "deactivated"].includes(l.status));
+            }
+            if (statusFilter === "expired") {
+                return all.filter((l) => ["expired", "sold"].includes(l.status));
+            }
+            return all.filter((l) => l.status === statusFilter);
+        },
+        enabled: isEnabled,
+        staleTime: 30_000,
+    });
+
+    const invalidateAll = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey });
+        queryClient.invalidateQueries({ queryKey: queryKeys.ads.stats() });
+    }, [queryClient, queryKey]);
+
+    const { mutateAsync: handleDelete } = useMutation({
+        mutationFn: deleteApi,
+        onSuccess: () => {
+            invalidateAll();
+            notify.success(`${entityLabel} deleted successfully`);
+        },
+        onError: (error) => {
+            logger.error(`Delete ${type} error:`, error);
+            notify.error(`Failed to delete ${entityLabel.toLowerCase()}`);
+        },
+    });
+
+    const { mutateAsync: handleMarkSold } = useMutation({
+        mutationFn: async ({ id, soldReason }: { id: string; soldReason?: ListingSoldReason }) => {
+            return markSoldApi(id, soldReason);
+        },
+        onSuccess: () => {
+            invalidateAll();
+            notify.success(`${entityLabel} marked as sold`);
+        },
+        onError: (error) => {
+            logger.error(`Mark ${type} sold error:`, error);
+            notify.error(`Failed to mark ${entityLabel.toLowerCase()} as sold`);
+        },
+    });
+
+    const { mutateAsync: handleDeactivate } = useMutation({
+        mutationFn: deactivateApi,
+        onSuccess: () => {
+            invalidateAll();
+            notify.success(`${entityLabel} deactivated`);
+        },
+        onError: (error) => {
+            logger.error(`Deactivate ${type} error:`, error);
+            notify.error(`Failed to deactivate ${entityLabel.toLowerCase()}`);
+        },
+    });
+
+    const { mutateAsync: handleActivate } = useMutation({
+        mutationFn: (id: string) => activateApi ? activateApi(id) : Promise.reject(new Error('Activate not supported')),
+        onSuccess: () => {
+            invalidateAll();
+            notify.success(`${entityLabel} reactivated — under review`);
+        },
+        onError: (error) => {
+            logger.error(`Activate ${type} error:`, error);
+            notify.error(`Failed to reactivate ${entityLabel.toLowerCase()}`);
+        },
+    });
+
+    const { mutateAsync: handleRepost } = useMutation({
+        mutationFn: repostApi,
+        onSuccess: () => {
+            invalidateAll();
+            notify.success(`${entityLabel} reposted — under review`);
+        },
+        onError: (error) => {
+            logger.error(`Repost ${type} error:`, error);
+            notify.error(`Failed to repost ${entityLabel.toLowerCase()}`);
+        },
+    });
+
+    return {
+        listings,
+        loading,
+        error,
+        refetch,
+        handleDelete: (id: string) => handleDelete(id),
+        handleMarkSold: (id: string, soldReason?: ListingSoldReason) => handleMarkSold({ id, soldReason }),
+        handleDeactivate: (id: string) => handleDeactivate(id),
+        handleActivate: (id: string) => handleActivate(id),
+        handleRepost: (id: string) => handleRepost(id),
+    };
+}

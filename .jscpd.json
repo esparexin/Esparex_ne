@@ -1,0 +1,15 @@
+{
+  "threshold": 9,
+  "reporters": ["json", "consoleFull"],
+  "ignore": [
+    "**/*.md",
+    "**/docs/**",
+    "**/*.py",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.next/**",
+    "**/coverage/**"
+  ],
+  "format": ["javascript", "typescript", "tsx"],
+  "absolute": true
+}

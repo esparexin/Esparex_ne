@@ -1,0 +1,115 @@
+import { Router } from "express";
+import * as getListingsController from "../controllers/listing/getListings.controller";
+import * as createListingController from "../controllers/listing/createListing.controller";
+import * as editListingController from "../controllers/listing/editListing.controller";
+import * as engagementController from "../controllers/listing/engagement.controller";
+import * as lifecycleController from "../controllers/listing/lifecycle.controller";
+import * as statsController from "../controllers/listing/stats.controller";
+
+import { protect, extractUser } from "../middleware/authMiddleware";
+import { validateObjectId } from "../middleware/validateObjectId";
+import { validateIdOrSlug } from "../middleware/validateIdOrSlug";
+import { searchLimiter, mutationLimiter } from "../middleware/rateLimiter";
+import { validateRequest } from "../middleware/validateRequest";
+import { updateAdSchema } from "@esparex/core/validators/ad.validator";
+import { idempotencyMiddleware } from "../middleware/idempotency";
+import { requireListingOwner } from "../middleware/ownershipGuard";
+import { requireVerifiedBusinessForServiceParts } from "../middleware/businessMiddleware";
+import type { ZodTypeAny } from "zod";
+
+const router = Router();
+
+/**
+ * Public Discovery Routes
+ */
+
+// GET /api/v1/listings/home
+router.get("/home", searchLimiter, getListingsController.getHomeFeed);
+
+// GET /api/v1/listings/trending
+router.get("/trending", searchLimiter, getListingsController.getTrending);
+
+// GET /api/v1/listings/nearby
+router.get("/nearby", extractUser, searchLimiter, validateIdOrSlug('id'), getListingsController.getNearbyListings);
+
+// GET /api/v1/listings/suggestions
+router.get("/suggestions", searchLimiter, getListingsController.getListingSuggestions);
+
+// GET /api/v1/listings
+// Browse / Search
+router.get("/", extractUser, searchLimiter, getListingsController.getListings);
+
+
+/**
+ * Protected Routes (Owner/Creator Only)
+ */
+
+// POST /api/v1/listings
+// Unified creation entry point
+router.post("/", protect, mutationLimiter, idempotencyMiddleware, requireVerifiedBusinessForServiceParts, createListingController.createListing);
+
+
+
+// GET /api/v1/listings/mine/stats
+// Unified fetch for user's listing counts across all types
+router.get("/mine/stats", protect, statsController.getMyListingStats);
+
+// GET /api/v1/listings/my/status-counts
+router.get("/my/status-counts", protect, statsController.getMyListingStatusCounts);
+
+// GET /api/v1/listings/mine
+// Unified fetch for user's own listings (all types)
+router.get("/mine", protect, statsController.getMyListings);
+
+// GET /api/v1/listings/my
+router.get("/my", protect, statsController.getMyTabListings);
+
+/**
+ * Public Detail Routes
+ */
+
+// GET /api/v1/listings/:id
+// Publicly fetch listing by ID or Slug
+router.get("/:id", validateIdOrSlug('id'), extractUser, getListingsController.getListingDetail);
+
+// GET /api/v1/listings/:id/view
+// Increment view count (public)
+router.get("/:id/view", validateObjectId, searchLimiter, engagementController.incrementListingView);
+
+// GET /api/v1/listings/:id/phone
+// Reveal phone number (public with optional auth context)
+router.get("/:id/phone", validateObjectId, extractUser, searchLimiter, engagementController.getListingPhone);
+
+// PATCH /api/v1/listings/:id/edit
+// Strict edit with ownership validation (Standardized)
+router.patch("/:id/edit", protect, validateObjectId, requireListingOwner, requireVerifiedBusinessForServiceParts, mutationLimiter, validateRequest(updateAdSchema as unknown as ZodTypeAny), editListingController.editListing);
+
+// PATCH /api/v1/listings/:id/sold
+// SSOT: Required terminal state transition
+router.patch("/:id/sold", protect, validateObjectId, requireListingOwner, mutationLimiter, lifecycleController.markListingSold);
+
+// PATCH /api/v1/listings/:id/deactivate
+// Lifecycle: LIVE -> DEACTIVATED
+router.patch("/:id/deactivate", protect, validateObjectId, requireListingOwner, mutationLimiter, lifecycleController.deactivateListing);
+
+// PATCH /api/v1/listings/:id/activate
+// Lifecycle: DEACTIVATED -> LIVE (immediate)
+router.patch("/:id/activate", protect, validateObjectId, requireListingOwner, requireVerifiedBusinessForServiceParts, mutationLimiter, lifecycleController.activateListing);
+
+// DELETE /api/v1/listings/:id
+// Lifecycle: Soft delete
+router.delete("/:id", protect, validateObjectId, requireListingOwner, mutationLimiter, lifecycleController.deleteListing);
+
+// POST /api/v1/listings/:id/repost
+// Lifecycle: Repost expired/rejected listing
+router.post("/:id/repost", protect, validateObjectId, requireListingOwner, requireVerifiedBusinessForServiceParts, mutationLimiter, idempotencyMiddleware, lifecycleController.repostListing);
+
+// POST /api/v1/listings/:id/promote
+// Promotion entry point
+router.post("/:id/promote", protect, validateObjectId, requireListingOwner, requireVerifiedBusinessForServiceParts, mutationLimiter, lifecycleController.promoteListing);
+
+// GET /api/v1/listings/:id/analytics
+// Performance tracking
+router.get("/:id/analytics", protect, validateObjectId, requireListingOwner, statsController.getListingAnalytics);
+
+export default router;

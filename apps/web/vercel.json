@@ -1,0 +1,9 @@
+{
+  "installCommand": "node -v && npm -v && pwd && npm install --include=dev",
+  "buildCommand": "NEXT_DISABLE_WEBPACK_CACHE=1 next build",
+  "outputDirectory": ".next",
+  "env": {
+    "HUSKY": "0",
+    "NEXT_PUBLIC_API_URL": "https://api.esparex.in/api/v1"
+  }
+}

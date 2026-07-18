@@ -1,0 +1,5 @@
+export { 
+  ADMIN_ROUTES,
+  ADMIN_API_V1_BASE_PATH,
+  DEFAULT_LOCAL_API_ORIGIN,
+} from "@shared";
