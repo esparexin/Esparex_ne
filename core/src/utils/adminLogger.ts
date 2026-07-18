@@ -1,4 +1,4 @@
-import AdminLog from '@esparex/domain-audit';
+import AdminLog from '../domain/audit/models/adminlog';
 import logger from './logger';
 
 export type AdminLogTargetType =

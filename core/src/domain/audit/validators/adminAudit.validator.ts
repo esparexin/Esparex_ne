@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { commonSchemas } from './common';
+import { commonSchemas } from '../../../validators/common';
 
 export const adminAuditLogQuerySchema = z.object({
     q: z.string().trim().max(120).optional(),
