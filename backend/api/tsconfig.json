@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "esModuleInterop": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "lib": ["ES2023", "DOM"],
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared": ["../../shared/dist/index"],
+      "@esparex/shared": ["../../shared/dist/index"],
+      "@esparex/contracts": ["../../packages/contracts/dist/index"],
+      "@esparex/contracts/*": ["../../packages/contracts/dist/*"],
+      "@esparex/core": ["./../../core/dist/index.d.ts"],
+      "@esparex/core/*": ["./../../core/dist/*"]
+    }
+  },
+  "include": ["src/index.ts", "src/server.ts", "src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

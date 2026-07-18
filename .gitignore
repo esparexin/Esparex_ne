@@ -1,0 +1,211 @@
+# Recovery workspace
+/repository-recovery/
+
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+**/coverage/
+
+# Next.js
+/.next/
+/out/
+.next
+out
+build
+
+# Production
+/build
+dist
+
+# Misc
+.DS_Store
+**/.DS_Store
+*.pem
+tmp/
+
+# AI IDE tool session data (Antigravity, Cursor, etc.)
+.antigravity-ide/
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files — catch-all then specifics
+**/.env
+**/.env.local
+**/.env.test
+**/.env.production
+**/.env.development
+.env
+.env.local
+.env.test
+.env.development
+.env.production
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+backend/.env.*
+backend/src/config/.env
+frontend/.env.local
+frontend/.env.test
+apps/admin/.env.local
+apps/admin/.env.*
+!apps/admin/.env.local.example
+!apps/admin/.env.production.example
+
+# Service credentials
+service-account.json
+service-account*.json
+**/service-account*.json
+google-services.json
+**/google-services.json
+
+# Generated service worker files (contain injected credentials)
+# Templates are tracked, but generated files are not
+public/firebase-messaging-sw.js
+firebase-messaging-sw.js
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/captures/
+frontend/ios/App/App.xcworkspace/xcuserdata/
+frontend/ios/App/App.xcodeproj/xcuserdata/
+frontend/ios/App/DerivedData/
+
+# MongoDB
+data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.config/
+.kilo/
+.kombai/
+.antigravity.system.prompt.md
+.cursorrules
+
+# Logs
+*.log
+logs/
+backend/logs/
+backend_stdout.log
+backend_stderr.log
+
+# Backups
+backups/
+*.gz
+
+# OS
+Thumbs.db
+
+# Build artifacts
+*.tgz
+
+# Submodules
+Esparex-next/
+node_modules
+frontend/.unimportedrc.json
+
+# Temporary audit files
+duplicates_report.txt
+*_report.txt
+*_audit.txt
+
+# Temporary output files
+backend/error_output.txt
+frontend/typecheck_errors.txt
+*_response.json
+walkthrough_*.md
+home_ads_*.json
+category_usage_report.md
+cookies.txt
+build_errors.txt
+tail*.json
+last*.json
+.claude/
+.jscpd-report/
+test-results/
+frontend/test-results/
+
+# Keep only example/template env files — never real values
+# *.env.example and *.env.*.example are intentionally tracked
+
+# Temporary build scripts
+frontend/android/app/new*.sh
+backend/lint_output*.txt
+scratch/
+
+# Build Artifacts in Source (Governance)
+**/src/**/*.js
+**/src/**/*.js.map
+!**/src/**/*.config.js
+!**/src/tests/jest.globalTeardown.js
+
+# CI artifacts
+ci-lint-results.json
+.eslintcache
+.eslintcache/
+
+# Architecture platform generated outputs (reports, registry, metrics history)
+# These are intentionally git-ignored. Commit snapshots manually if desired.
+.tooling/
+
+# -----------------------------------------------------------------------------
+# Graphify — knowledge graph tooling
+# -----------------------------------------------------------------------------
+# Rule: NOTHING inside graphify-out/ is ever committed.
+# The entire directory (graph, reports, cache, backups, obsidian vault, exports)
+# is generated at runtime and must never appear in Git.
+
+# Primary output directory (covers all subdirectories including YYYY-MM-DD backups)
+graphify-out/
+
+# Graphify internal state files (if created outside graphify-out/)
+.graphify/
+.graphify_python
+.graphify_root
+.graphify_*.json
+.graphify_*.txt
+
+# Graphify export formats (if generated outside graphify-out/)
+*.graphml
+cypher.txt
+graph.graphml
+graph.json
+GRAPH_REPORT.md
+
+# -----------------------------------------------------------------------------
+# Python runtime artifacts
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+
+# Gradle
+.gradle/
+**/.gradle/
+
+# Temp workspace files
+tech-debt-insights.md
+.commandcode/
+
+
+.agents/skills/
+.scratch/

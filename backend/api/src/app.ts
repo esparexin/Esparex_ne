@@ -1,0 +1,447 @@
+/**
+ * ESPAREX ARCHITECTURE GUARANTEE
+ *
+ * - Single Express server
+ * - All routes mounted under /api/v1
+ * - Dual DB supported (User/Admin)
+ * - GeoJSON only for query models
+ * - No duplicate model registration
+ *
+ * Any architectural changes must pass SSOT audit.
+ */
+import '@esparex/core/config/loadEnv'; // MUST BE FIRST
+import { initSentry } from '@esparex/core/config/sentry'; // Initialize Sentry early
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
+import '@esparex/core/models/registry';
+import { env } from '@esparex/core/config/env';
+import { validateOtpConfiguration } from './middleware/otpGuard';
+import { registerDeprecationRoutes } from './middleware/deprecations';
+
+// Initialize Sentry for error tracking
+initSentry();
+
+// Initialize OTP Guard with configuration validation
+validateOtpConfiguration({
+    isProduction: env.NODE_ENV === 'production',
+    isDevelopment: env.NODE_ENV === 'development',
+    isTest: env.NODE_ENV === 'test',
+    msg91AuthKey: env.MSG91_AUTH_KEY,
+    msg91SenderId: env.MSG91_SENDER_ID,
+    authBypassOtpLock: env.AUTH_BYPASS_OTP_LOCK,
+    useDefaultOtp: env.USE_DEFAULT_OTP,
+});
+
+/* -------------------------------------------------------------------------- */
+/* ROUTES                                                                      */
+/* -------------------------------------------------------------------------- */
+import catalogRoutes from './routes/catalogRoutes';
+import userRoutes from './routes/userRoutes';
+import authRoutes from './routes/authRoutes';
+
+import listingRoutes from './routes/listingRoutes';
+import smartAlertRoutes from './routes/smartAlertRoutes';
+import locationRoutes from './routes/locationRoutes';
+import aiRoutes from './routes/aiRoutes';
+import notificationRoutes from './routes/notificationRoutes';
+import businessRoutes from './routes/businessRoutes';
+import invoiceRoutes from './routes/invoiceRoutes';
+import paymentRoutes from './routes/paymentRoutes';
+import reportRoutes from './routes/reportRoutes';
+import chatRoutes from './routes/chatRoutes';
+// import catalogRequestRoutes from './routes/catalogRequestRoutes';
+import adminCatalogRequestRoutes from './routes/adminCatalogRequestRoutes';
+
+
+
+import editorialRoutes from './routes/editorialRoutes';
+import contactRoutes from './routes/contactRoutes';
+import rootRoutes from './routes/rootRoutes';
+import adminRoutes from './routes/adminRoutes';
+import adminCatalogRoutes from './routes/adminCatalogRoutes';
+
+
+
+
+/* -------------------------------------------------------------------------- */
+/* MIDDLEWARE                                                                  */
+/* -------------------------------------------------------------------------- */
+import { globalLimiter } from './middleware/rateLimiter';
+import { requireDb } from './middleware/requireDb';
+import { maintenanceMiddleware } from './middleware/maintenanceMiddleware';
+import { enforceErrorResponseContract } from './middleware/errorResponseContract';
+
+/* -------------------------------------------------------------------------- */
+/* DB / HEALTH                                                                 */
+/* -------------------------------------------------------------------------- */
+import { isDbReady } from '@esparex/core/config/db';
+import logger from '@esparex/core/utils/logger';
+import { getAllowedOriginList, normalizeOrigin } from '@esparex/core/utils/originConfig';
+import { getHealthCheckData, healthCheckHandler } from './utils/health';
+
+/* -------------------------------------------------------------------------- */
+/* SWAGGER                                                                     */
+/* -------------------------------------------------------------------------- */
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger';
+
+/* -------------------------------------------------------------------------- */
+/* APP INIT                                                                    */
+/* -------------------------------------------------------------------------- */
+const app = express();
+app.disable("x-powered-by");
+
+// Trust proxy for rate limiting behind load balancers/proxies
+app.set('trust proxy', 1);
+
+/* -------------------------------------------------------------------------- */
+/* CORS — MUST BE FIRST                                                        */
+/* -------------------------------------------------------------------------- */
+const configuredOrigins = getAllowedOriginList({
+    NODE_ENV: env.NODE_ENV,
+    CORS_ORIGIN: env.CORS_ORIGIN,
+    COOKIE_DOMAIN: env.COOKIE_DOMAIN,
+    FRONTEND_URL: env.FRONTEND_URL,
+    FRONTEND_INTERNAL_URL: env.FRONTEND_INTERNAL_URL,
+    ADMIN_FRONTEND_URL: env.ADMIN_FRONTEND_URL,
+    ADMIN_URL: env.ADMIN_URL,
+});
+
+const allowedOriginsList = [
+    'https://esparex.in',
+    'https://www.esparex.in',
+    'https://admin.esparex.in',
+    'https://api.esparex.in',
+    'https://esparex-userfrontend.vercel.app',
+    'https://esparex-admin-frontend.vercel.app',
+    ...configuredOrigins
+].map(normalizeOrigin);
+
+const corsOptions: cors.CorsOptions = {
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+
+        // 🛡️ AUTOMATIC LOCAL DEV ALLOWANCE
+        if (env.NODE_ENV === 'development' || env.NODE_ENV === 'test') {
+            const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin);
+            if (isLocal) return callback(null, true);
+        }
+
+        const normalized = normalizeOrigin(origin);
+        if (
+            allowedOriginsList.includes(normalized) ||
+            /\.vercel\.app$/.test(normalized)
+        ) {
+            return callback(null, true);
+        }
+
+        return callback(new Error('CORS blocked'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'Accept',
+        'X-Requested-With',   // ✅ REQUIRED FOR AXIOS
+        'accessToken',
+        'x-user-session',
+        'X-Encrypted',
+        'x-geo-lat',
+        'x-geo-lng',
+        'Idempotency-Key',
+        'Cache-Control',
+        'Pragma',
+        'x-no-retry',         // ✅ REQUIRED FOR OTP REQUESTS
+        'X-CSRF-Token',       // ✅ REQUIRED FOR CSRF PROTECTION
+        'x-correlation-id',   // ✅ REQUIRED FOR DISTRIBUTED TRACING
+        'x-trace-id',         // ✅ REQUIRED FOR DISTRIBUTED TRACING
+        'x-request-id'        // ✅ REQUIRED FOR LOG CORRELATION
+    ],
+    exposedHeaders: [
+        'X-RateLimit-Limit',
+        'X-RateLimit-Remaining',
+        'X-RateLimit-Reset',
+        'Retry-After',
+        'X-Correlation-ID',
+        'X-Trace-ID',
+        'X-Request-ID'
+    ]
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions)); // ✅ ENABLE PREFLIGHT for all routes
+
+// 🛡️ API DEPRECATION LAYER
+registerDeprecationRoutes(app);
+
+/* -------------------------------------------------------------------------- */
+/* SECURITY                                                                    */
+/* -------------------------------------------------------------------------- */
+// TLS 1.2+ and Secure Cipher Suites must be enforced at the Load Balancer / Ingress layer.
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    hsts: {
+        maxAge: 31536000, // 1 year
+        includeSubDomains: true,
+        preload: true
+    }
+}));
+
+/* -------------------------------------------------------------------------- */
+/* COMPRESSION                                                                 */
+/* -------------------------------------------------------------------------- */
+// Gzip compress all responses. Must come before routes and body parsers.
+app.use(compression());
+
+/* -------------------------------------------------------------------------- */
+/* CORE MIDDLEWARE                                                             */
+/* -------------------------------------------------------------------------- */
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true, limit: "15mb" }));
+app.use(cookieParser());
+
+// Request ID MUST be registered first — it establishes the TraceContext
+// (AsyncLocalStorage) used by every subsequent middleware and all log lines.
+// Registering it after metrics middlewares produces 'correlationId: no-context'.
+import requestIdMiddleware from './middleware/requestId';
+import { sentryRequestHandler, sentryTracingHandler } from './middleware/sentryErrorHandler';
+import { apiLatencyMiddleware, getApiReliabilitySummary, memoryUsageMiddleware } from './middleware/metricsMiddleware';
+import { getSystemMetricsSummary } from '@esparex/core/utils/systemMetricsSummary';
+
+app.use(requestIdMiddleware); // FIRST: establishes correlationId in AsyncLocalStorage
+app.use(sentryRequestHandler); // Sentry request context
+app.use(sentryTracingHandler); // Sentry performance monitoring
+app.use(apiLatencyMiddleware);
+app.use(memoryUsageMiddleware);
+
+if (env.NODE_ENV !== 'test') {
+    app.use(morgan('dev'));
+}
+
+// Force JSON responses everywhere
+app.use((_req, res, next) => {
+    res.locals.forceJson = true;
+    next();
+});
+app.use(enforceErrorResponseContract);
+
+/* -------------------------------------------------------------------------- */
+/* SWAGGER — dev/staging only                                                  */
+/* -------------------------------------------------------------------------- */
+// API docs are hidden in production to prevent schema exposure.
+if (env.NODE_ENV !== 'production') {
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+    app.get('/api-docs.json', (_req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.send(swaggerSpec);
+    });
+}
+
+/* -------------------------------------------------------------------------- */
+/* RATE LIMITING                                                               */
+/* -------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* HEALTH & ROOT (NO DB GUARD)                                                  */
+/* -------------------------------------------------------------------------- */
+
+// app.get('/health', healthCheckHandler); // Handled by rootRoutes under /api/v1
+// app.get('/api/v1/health', healthCheckHandler); // Handled by rootRoutes
+
+// Legacy namespace redirects handled by deprecation layer
+
+app.use('/api/v1', globalLimiter);
+
+/* -------------------------------------------------------------------------- */
+/* HEALTH & ROOT (NO DB GUARD)                                                  */
+/* -------------------------------------------------------------------------- */
+// Health check moved to before rate limiter
+
+
+app.get('/health', healthCheckHandler);
+
+app.get('/system/status', async (_req, res) => {
+    try {
+        const health = await getHealthCheckData(true);
+        const statusCode = health.status === 'error' ? 503 : 200;
+
+        res.status(statusCode).json({
+            success: health.success,
+            status: health.status,
+            timestamp: new Date().toISOString(),
+            services: {
+                db: {
+                    status: health.databaseHealth.overall,
+                    details: health.databaseHealth,
+                },
+                redis: {
+                    status: health.redisConnected ? 'up' : 'down',
+                    latencyMs: health.redisPingLatencyMs,
+                    details: health.redisHealth,
+                },
+                queue: {
+                    status: health.queueStatus,
+                    details: health.queueHealth,
+                },
+                worker: {
+                    status: health.workerStatus,
+                    details: health.workerHealth,
+                },
+            },
+            uptime: health.uptime,
+            memoryUsage: health.memoryUsage,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            status: 'error',
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+app.get('/system/metrics-summary', async (_req, res) => {
+    try {
+        const summary = await getSystemMetricsSummary();
+        const apiReliability = getApiReliabilitySummary();
+        const statusCode = summary.api.status === 'error' ? 503 : 200;
+        res.status(statusCode).json({
+            success: summary.api.success,
+            status: summary.api.status,
+            generatedAt: summary.timestamp,
+            api: {
+                ...summary.api,
+                failureRateWindow: apiReliability.lastWindow,
+                failureThresholds: apiReliability.thresholds,
+            },
+            queue: summary.queue,
+            workers: summary.worker,
+            dependency: summary.dependency,
+            failureRates: summary.failureRates,
+            security: summary.security,
+            circuitBreakers: summary.circuitBreakers,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            status: 'error',
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+app.get('/', (_req, res) => {
+    res.json({
+        status: 'ok',
+        message: 'Esparex API is running',
+        version: '1.0.0',
+        isDbReady: isDbReady(),
+        timestamp: new Date().toISOString()
+    });
+});
+
+/**
+ * 📊 PROMETHEUS METRICS ENDPOINT
+ * 
+ * Exposes internal metrics for Prometheus scraping.
+ * Protected by basic auth or internal network restricted in production.
+ */
+import { register } from '@esparex/core/utils/metrics';
+app.get('/metrics', async (_req, res) => {
+    try {
+        res.set('Content-Type', register.contentType);
+        res.end(await register.metrics());
+    } catch (err) {
+        res.status(500).end(err instanceof Error ? err.message : String(err));
+    }
+});
+
+/* -------------------------------------------------------------------------- */
+/* CSRF PROTECTION                                                             */
+/* -------------------------------------------------------------------------- */
+import { verifyCsrfToken } from './middleware/csrfProtection';
+
+// CSRF token endpoint (public, no auth required)
+// Handled by rootRoutes and adminRoutes
+
+/* -------------------------------------------------------------------------- */
+/* FAIL-FAST DB GATE (DATA ROUTES ONLY)                                         */
+/* -------------------------------------------------------------------------- */
+app.use('/api/v1', requireDb, maintenanceMiddleware);
+
+// Apply CSRF protection to all state-changing requests
+app.use('/api/v1', verifyCsrfToken);
+
+/* -------------------------------------------------------------------------- */
+/* ROUTES                                                                      */
+/* -------------------------------------------------------------------------- */
+// --- SSOT API Namespace ---
+app.use('/api/v1', rootRoutes);
+app.use('/api/v1/catalog', catalogRoutes);
+// app.use('/api/v1/catalog-requests', catalogRequestRoutes);
+app.use('/api/v1/locations', locationRoutes);
+app.use('/api/v1/editorial', editorialRoutes);
+
+// User & Auth
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/auth', authRoutes);
+
+// Unified Listing Engine (SSOT)
+app.use('/api/v1/listings', listingRoutes);
+
+// Webhook Observability Layer
+app.use('/api/v1/payments/webhook', (req, _res, next) => {
+    logger.info(`[PAYMENT_WEBHOOK] Received ${req.method} request`, {
+        ip: req.ip,
+        ua: req.headers['user-agent'],
+        requestId: req.headers['x-request-id']
+    });
+    next();
+});
+
+// AI & Notifications
+app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/smart-alerts', smartAlertRoutes);
+
+// Business & Finance
+app.use('/api/v1/businesses', businessRoutes);
+app.use('/api/v1/invoices', invoiceRoutes);
+app.use('/api/v1/payments', paymentRoutes);
+
+// Communication & Feedback
+app.use('/api/v1/contacts', contactRoutes);
+app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/chat', chatRoutes);
+app.use('/api/v1/admin/catalog-requests', adminCatalogRequestRoutes);
+app.use('/api/v1/admin/catalog', adminCatalogRoutes);
+app.use('/api/v1/admin', adminRoutes);
+
+// Legacy API deprecation layer handled by registerDeprecationRoutes(app)
+
+/* -------------------------------------------------------------------------- */
+/* 404 & ERROR HANDLERS                                                         */
+/* -------------------------------------------------------------------------- */
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'Route not found',
+        method: req.method,
+        path: req.path,
+        status: 404
+    });
+});
+
+// Sentry error handler - must be before other error handlers
+import { sentryErrorHandler, customErrorHandler } from './middleware/sentryErrorHandler';
+app.use(sentryErrorHandler);
+
+// Custom error handler
+app.use(customErrorHandler);
+
+export default app;

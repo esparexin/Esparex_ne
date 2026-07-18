@@ -1,0 +1,401 @@
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ACCOUNT_COPY } from '@/config/copy/account';
+import { FeatureCard } from '@/components/user/FeatureCard';
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { FormError } from "@/components/ui/FormError";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Bell, Eye, Edit2, Trash2, Crown, Settings2 } from "lucide-react";
+import LocationSelector from "@/components/location/LocationSelector";
+import type { Location } from "@/lib/api/user/locations";
+import type {
+    SmartAlertFieldErrors,
+    SmartAlertFormData,
+    SmartAlertListItem,
+} from "../types";
+
+type SmartAlertSelection = Pick<Location, "id" | "locationId" | "name" | "display" | "city" | "coordinates">;
+
+interface SmartAlertsTabProps {
+    smartAlerts: SmartAlertListItem[];
+    smartAlertForm: SmartAlertFormData;
+    updateSmartAlertForm: (updates: Partial<SmartAlertFormData>) => void;
+    handleCreateAlert: (location: SmartAlertSelection | null) => void;
+    handleToggleAlertStatus: (id: string) => void;
+    handleDeleteAlert: (id: string) => void;
+    handleViewAlertMatches: (alert: SmartAlertListItem) => void;
+    handleEditAlert: (alert: SmartAlertListItem) => void;
+    editingAlertId: string | null;
+    resetAlertForm: () => void;
+    setActiveTab: (tab: string) => void;
+    loading?: boolean;
+    smartAlertErrors?: SmartAlertFieldErrors;
+    smartAlertGlobalError?: string | null;
+    clearSmartAlertError?: (field: keyof SmartAlertFieldErrors) => void;
+}
+
+export function SmartAlertsTab({
+    smartAlerts,
+    smartAlertForm,
+    updateSmartAlertForm,
+    handleCreateAlert,
+    handleToggleAlertStatus,
+    handleDeleteAlert,
+    handleViewAlertMatches,
+    handleEditAlert,
+    editingAlertId,
+    resetAlertForm,
+    setActiveTab,
+    loading,
+    smartAlertErrors,
+    smartAlertGlobalError,
+    clearSmartAlertError,
+}: SmartAlertsTabProps) {
+    const [selectedLocation, setSelectedLocation] = useState<SmartAlertSelection | null>(null);
+    // C4: Two-step delete confirmation — prevents accidental alert deletion
+    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+    const activeAlerts = smartAlerts.filter((alert) => alert.active !== false).length;
+    const isEditing = Boolean(editingAlertId);
+
+    useEffect(() => {
+        if (!smartAlertForm.location.trim()) {
+            void (async () => { setSelectedLocation(null); })();
+        }
+    }, [smartAlertForm.location]);
+
+    useEffect(() => {
+        void (async () => { setSelectedLocation(null); })();
+    }, [editingAlertId]);
+
+    const handleLocationSelect = (loc: Location | null) => {
+        if (!loc?.coordinates) {
+            setSelectedLocation(null);
+            updateSmartAlertForm({ location: "", locationId: null });
+            return;
+        }
+
+        setSelectedLocation({
+            id: loc.id,
+            locationId: loc.locationId,
+            name: loc.name,
+            display: loc.display,
+            city: loc.city,
+            coordinates: loc.coordinates,
+        });
+        updateSmartAlertForm({
+            location: loc.display || loc.name || loc.city || "",
+            locationId: loc.locationId || loc.id || null,
+        });
+    };
+
+    if (loading) return <div className="p-12 text-center text-muted-foreground animate-pulse">Loading Alerts...</div>;
+    return (
+        <div className="space-y-4">
+            {/* Smart Alerts Header */}
+            <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 gap-0">
+                <FeatureCard title={(<><Bell className="h-5 w-5 text-link" /> Smart Alerts</>)} description={"Get notified when new ads match your search criteria"} Icon={Bell} />
+                <CardContent>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium">Active Alerts</p>
+                            <p className="text-xs text-muted-foreground">{activeAlerts} currently running</p>
+                        </div>
+                        <Badge className="bg-blue-600 text-white">{activeAlerts} Active</Badge>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Two Column Layout - Active Alerts & Create/Settings */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Left: Active Smart Alerts */}
+                <Card className="gap-0">
+                    <FeatureCard title={(<span>Your Active Alerts</span>)} description={ACCOUNT_COPY.smartAlertsDescription} />
+                    <CardContent className="space-y-3">
+                        {smartAlerts.length === 0 && <p className="text-center py-8 text-sm text-muted-foreground">No alerts set up yet.</p>}
+                        {smartAlerts.map((alert) => (
+                            <div key={alert.id} className="border rounded-lg p-4 space-y-3">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h4 className="font-semibold">{alert.name}</h4>
+                                            <Badge
+                                                variant="secondary"
+                                                className={`text-xs ${alert.active === false ? "bg-slate-100 text-foreground-secondary" : "bg-green-100 text-green-700"}`}
+                                            >
+                                                {alert.active === false ? "Paused" : "Active"}
+                                            </Badge>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                            {alert.keywords}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Category: {alert.category || "Any"} • Location: {alert.location || "Any"}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex-1 bg-gray-100 rounded-lg px-3 py-2">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="text-muted-foreground">Last match</span>
+                                            <span className="font-medium">{alert.lastMatch || "N/A"}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 bg-gray-100 rounded-lg px-3 py-2">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="text-muted-foreground">Total matches</span>
+                                            <span className="font-medium">{alert.totalMatches || 0} ads</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2 w-full h-11"
+                                        onClick={() => handleViewAlertMatches(alert)}
+                                    >
+                                        <Eye className="h-3 w-3" />
+                                        View Ads
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2 w-full h-11"
+                                        onClick={() => handleEditAlert(alert)}
+                                    >
+                                        <Edit2 className="h-3 w-3" />
+                                        Edit
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2 w-full h-11"
+                                        onClick={() => handleToggleAlertStatus(alert.id)}
+                                    >
+                                        <Bell className="h-3 w-3" />
+                                        {alert.active === false ? "Resume" : "Pause"}
+                                    </Button>
+                                    {pendingDeleteId === alert.id ? (
+                                        <>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="gap-2 w-full h-11 text-red-600 border-red-300 hover:bg-red-50"
+                                                onClick={() => {
+                                                    setPendingDeleteId(null);
+                                                    handleDeleteAlert(alert.id);
+                                                }}
+                                            >
+                                                <Trash2 className="h-3 w-3" />
+                                                Confirm Delete
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="w-full h-11"
+                                                onClick={() => setPendingDeleteId(null)}
+                                            >
+                                                Cancel
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-2 w-full h-11 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                            onClick={() => setPendingDeleteId(alert.id)}
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                            Delete
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Upgrade CTA */}
+                        <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 mt-4">
+                            <CardContent className="p-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0">
+                                        <Crown className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h4 className="font-semibold text-sm">Want more alerts?</h4>
+                                        <p className="text-xs text-muted-foreground">Upgrade to Premium for unlimited smart alerts</p>
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        className="bg-purple-600 hover:bg-purple-700 text-white h-11"
+                                        onClick={() => setActiveTab("plans")}
+                                    >
+                                        Upgrade
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </CardContent>
+                </Card>
+
+                {/* Right: Create New Alert & Settings */}
+                <div className="space-y-4">
+                    {/* Create New Alert */}
+                    <Card className="gap-0">
+                        <CardHeader>
+                            <CardTitle className="text-base">{isEditing ? "Edit Alert" : "Create New Alert"}</CardTitle>
+                            <CardDescription>
+                                {isEditing ? "Update this smart alert without leaving the page" : "Set up a new smart alert for your search"}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="smart-alert-name" className="text-sm">Alert Name</Label>
+                                        <span className={`text-xs font-medium ${smartAlertForm.name.length > 50 ? "text-destructive" : "text-muted-foreground"}`}>
+                                            {smartAlertForm.name.length}/50
+                                        </span>
+                                    </div>
+                                    <Input
+                                        id="smart-alert-name"
+                                        placeholder="e.g., iPhone 14 Pro in New York"
+                                        className={`mt-1.5 ${smartAlertErrors?.name ? "border-red-500" : ""}`}
+                                        value={smartAlertForm.name}
+                                        maxLength={50}
+                                        onChange={(e) => {
+                                            if (smartAlertErrors?.name) clearSmartAlertError?.("name");
+                                            updateSmartAlertForm({ name: e.target.value });
+                                        }}
+                                        aria-invalid={!!smartAlertErrors?.name}
+                                        aria-describedby={smartAlertErrors?.name ? "smart-alert-name-error" : undefined}
+                                    />
+                                    <FormError id="smart-alert-name-error" message={smartAlertErrors?.name} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="smart-alert-keywords" className="text-sm">Search Keywords</Label>
+                                        <span className={`text-xs font-medium ${smartAlertForm.keywords.length > 150 ? "text-destructive" : "text-muted-foreground"}`}>
+                                            {smartAlertForm.keywords.length}/150
+                                        </span>
+                                    </div>
+                                    <Input
+                                        id="smart-alert-keywords"
+                                        placeholder="e.g., iPhone 14 Pro Max 256GB"
+                                        className={`mt-1.5 ${smartAlertErrors?.keywords ? "border-red-500" : ""}`}
+                                        value={smartAlertForm.keywords}
+                                        maxLength={150}
+                                        onChange={(e) => {
+                                            if (smartAlertErrors?.keywords) clearSmartAlertError?.("keywords");
+                                            updateSmartAlertForm({ keywords: e.target.value });
+                                        }}
+                                        aria-invalid={!!smartAlertErrors?.keywords}
+                                        aria-describedby={smartAlertErrors?.keywords ? "smart-alert-keywords-error" : undefined}
+                                    />
+                                    <FormError id="smart-alert-keywords-error" message={smartAlertErrors?.keywords} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="smart-alert-category" className="text-sm">Category</Label>
+                                        <span className={`text-xs font-medium ${smartAlertForm.category.length > 80 ? "text-destructive" : "text-muted-foreground"}`}>
+                                            {smartAlertForm.category.length}/80
+                                        </span>
+                                    </div>
+                                    <Input
+                                        id="smart-alert-category"
+                                        placeholder="Mobile Phones"
+                                        className={`mt-1.5 ${smartAlertErrors?.category ? "border-red-500" : ""}`}
+                                        value={smartAlertForm.category}
+                                        maxLength={80}
+                                        onChange={(e) => {
+                                            if (smartAlertErrors?.category) clearSmartAlertError?.("category");
+                                            updateSmartAlertForm({ category: e.target.value });
+                                        }}
+                                        aria-invalid={!!smartAlertErrors?.category}
+                                        aria-describedby={smartAlertErrors?.category ? "smart-alert-category-error" : undefined}
+                                    />
+                                    <FormError id="smart-alert-category-error" message={smartAlertErrors?.category} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="smart-alert-location" className="text-sm">Location</Label>
+                                    <div className="mt-1.5">
+                                        <LocationSelector variant="inline"
+                                            currentDisplay={smartAlertForm.location || undefined}
+                                            onLocationSelect={handleLocationSelect}
+                                        />
+                                    </div>
+                                    <FormError message={smartAlertErrors?.location} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <Label htmlFor="smart-alert-radius" className="text-sm">Location Radius</Label>
+                                        <span className="text-sm font-medium text-green-600">{smartAlertForm.radiusKm} km</span>
+                                    </div>
+                                    <input
+                                        id="smart-alert-radius"
+                                        name="smart-alert-radius"
+                                        type="range"
+                                        min="5"
+                                        max="500"
+                                        value={smartAlertForm.radiusKm}
+                                        onChange={(e) => {
+                                            if (smartAlertErrors?.radiusKm) clearSmartAlertError?.("radiusKm");
+                                            updateSmartAlertForm({ radiusKm: parseInt(e.target.value, 10) });
+                                        }}
+                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                                    />
+                                    <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                                        <span>5 km</span>
+                                        <span>500 km</span>
+                                    </div>
+                                    <FormError message={smartAlertErrors?.radiusKm} />
+                                </div>
+                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                    <div>
+                                        <Label htmlFor="smart-alert-email-notify" className="text-sm font-medium">Email Notifications</Label>
+                                        <p className="text-xs text-muted-foreground">Prefer email for this alert. Final delivery still respects account notification settings.</p>
+                                    </div>
+                                    <Switch
+                                        id="smart-alert-email-notify"
+                                        checked={smartAlertForm.notificationChannels.includes("email")}
+                                        onCheckedChange={(checked) => updateSmartAlertForm({ notificationChannels: checked ? ["email"] : [] })}
+                                    />
+                                </div>
+                                <FormError message={smartAlertGlobalError} />
+                                <Button
+                                    className="w-full bg-green-600 hover:bg-green-700 gap-2 text-white"
+                                    onClick={() => handleCreateAlert(selectedLocation)}
+                                >
+                                    <Bell className="h-4 w-4" />
+                                    {isEditing ? "Save Changes" : "Create Alert"}
+                                </Button>
+                                {isEditing && (
+                                    <Button
+                                        className="w-full gap-2"
+                                        variant="outline"
+                                        onClick={resetAlertForm}
+                                    >
+                                        Cancel Edit
+                                    </Button>
+                                )}
+                                <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-link-dark">
+                                    Smart alert delivery is managed from Account Settings now. Use email, push, and instant-alert toggles there to control how alerts are delivered.
+                                </div>
+                                <Button
+                                    className="w-full gap-2"
+                                    variant="outline"
+                                    onClick={() => setActiveTab("settings")}
+                                >
+                                    <Settings2 className="h-4 w-4" />
+                                    Open Notification Settings
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        </div>
+    );
+}

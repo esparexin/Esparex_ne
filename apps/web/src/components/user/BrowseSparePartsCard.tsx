@@ -1,0 +1,46 @@
+"use client";
+
+import { memo } from "react";
+import { CircuitBoard } from "lucide-react";
+
+import { BrowseListingCard } from "@/components/user/BrowseListingCard";
+import { type Listing as SparePartListing } from "@/lib/api/user/listings";
+import { formatPrice } from "@/lib/formatters";
+import { toSafeImageSrc } from "@/lib/image/imageUrl";
+import { resolveListingLocationLabel } from "@/lib/listings/listingPresentation";
+import { buildPublicListingDetailRoute } from "@/lib/publicListingRoutes";
+
+export const BrowseSparePartsCard = memo(function BrowseSparePartsCard({
+  listing,
+  view = "grid",
+  priority = false,
+}: {
+  listing: SparePartListing;
+  view?: "grid" | "list";
+  priority?: boolean;
+}) {
+  const imageUrl = toSafeImageSrc(listing.images?.[0], "");
+  const location = resolveListingLocationLabel(listing.location, "brief");
+
+  return (
+    <BrowseListingCard
+      href={buildPublicListingDetailRoute({
+        id: listing.id,
+        listingType: "spare_part",
+        seoSlug: listing.seoSlug,
+        title: listing.title,
+      })}
+      imageUrl={imageUrl}
+      title={listing.title}
+      priceLabel={formatPrice(listing.price)}
+      priceClassName="text-teal-700"
+      badgeLabel="SPARE PART"
+      badgeClassName="bg-teal-600 text-white"
+      view={view}
+      location={location}
+      createdAt={listing.createdAt}
+      fallbackIcon={CircuitBoard}
+      priority={priority}
+    />
+  );
+});
